@@ -1,0 +1,16 @@
+{
+	"Name": "ExpandNPCPaths",
+	"Author": "kanzaki",
+	"Version": "1.0.0",
+	"Description": "Expands NPC pathing to allow movement into normally restricted areas like Farm and FarmHouse.",
+	"UniqueID": "kanzaki.ExpandNPCPaths",
+	"EntryDll": "ExpandNPCPaths.dll",
+	"MinimumApiVersion": "4.1.10",
+	"UpdateKeys": [],
+	"Dependencies": [
+		{
+			"UniqueID": "IamSaulC.NonDestructiveNPCs",
+			"MinimumVersion": ""
+		}
+	]
+}
