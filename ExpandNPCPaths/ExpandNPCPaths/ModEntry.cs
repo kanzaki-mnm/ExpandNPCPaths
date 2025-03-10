@@ -28,34 +28,34 @@ namespace NPCPassableInFarm
                 postfix: new HarmonyMethod(typeof(ModEntry), nameof(AddFarmDoors))
             );
 
-			// NPCBarrier属性を削除
+            // NPCBarrier属性を削除
             harmony.Patch(
                 original: AccessTools.Method(typeof(GameLocation), "loadObjects"),
-				postfix: new HarmonyMethod(typeof(ModEntry), nameof(RemoveNPCBarrier))
+                postfix: new HarmonyMethod(typeof(ModEntry), nameof(RemoveNPCBarrier))
             );
 
-			// FarmとBackwoodsを経路探索の除外リストから削除
+            // FarmとBackwoodsを経路探索の除外リストから削除
             harmony.Patch(
                 original: AccessTools.Method(typeof(WarpPathfindingCache), "PopulateCache"),
-				prefix: new HarmonyMethod(typeof(ModEntry), nameof(RemoveFromIgnoreLocationNames))
+                prefix: new HarmonyMethod(typeof(ModEntry), nameof(RemoveFromIgnoreLocationNames))
             );
 
             // Farmの通行制限を解除
             harmony.Patch(
                 original: AccessTools.DeclaredMethod(typeof(Farm), "ShouldExcludeFromNpcPathfinding"),
-				postfix: new HarmonyMethod(typeof(ModEntry), nameof(IncludeInNpcPathfinding))
+                postfix: new HarmonyMethod(typeof(ModEntry), nameof(IncludeInNpcPathfinding))
             );
 
             // Backwoodsの通行制限を解除
             harmony.Patch(
                 original: AccessTools.DeclaredMethod(typeof(GameLocation), "ShouldExcludeFromNpcPathfinding"),
-				postfix: new HarmonyMethod(typeof(ModEntry), nameof(IncludeInNpcPathfinding))
+                postfix: new HarmonyMethod(typeof(ModEntry), nameof(IncludeInNpcPathfinding))
             );
 
             // Farmの建物内へのワープを追加
             harmony.Patch(
                 original: AccessTools.Method(typeof(GameLocation), "getWarpPointTarget"),
-				postfix: new HarmonyMethod(typeof(ModEntry), nameof(SetWarpPointTarget))
+                postfix: new HarmonyMethod(typeof(ModEntry), nameof(SetWarpPointTarget))
             );
         }
 
@@ -235,25 +235,25 @@ namespace NPCPassableInFarm
             RegistFarmBuildingsAddHook(__instance);
         }
 
-		private static void RemoveFromIgnoreLocationNames()
+        private static void RemoveFromIgnoreLocationNames()
         {
-			// FarmとBackwoodsを経路探索の除外リストから削除
+            // FarmとBackwoodsを経路探索の除外リストから削除
             WarpPathfindingCache.IgnoreLocationNames.Remove("Farm");
             WarpPathfindingCache.IgnoreLocationNames.Remove("Backwoods");
-			// ModMonitor.Log($"[DEBUG] RemoveFromIgnoreLocationNames", LogLevel.Debug);
+            // ModMonitor.Log($"[DEBUG] RemoveFromIgnoreLocationNames", LogLevel.Debug);
         }
 
-		private static void IncludeInNpcPathfinding(GameLocation __instance, ref bool __result)
+        private static void IncludeInNpcPathfinding(GameLocation __instance, ref bool __result)
         {
             // FarmとBackwoodsの通行制限を解除
             if (__instance.NameOrUniqueName == "Farm" || __instance.NameOrUniqueName == "Backwoods")
             {
                 __result = false;
-				// ModMonitor.Log($"[DEBUG] IncludeInNpcPathfinding in {__instance.NameOrUniqueName}", LogLevel.Debug);
+                // ModMonitor.Log($"[DEBUG] IncludeInNpcPathfinding in {__instance.NameOrUniqueName}", LogLevel.Debug);
             }
         }
 
-		private static void SetWarpPointTarget(GameLocation __instance, ref Point __result, Point warpPointLocation, Character? character = null)
+        private static void SetWarpPointTarget(GameLocation __instance, ref Point __result, Point warpPointLocation, Character? character = null)
         {
             // Farmの建物内へのワープを追加
             if (__instance.NameOrUniqueName != "Farm")
