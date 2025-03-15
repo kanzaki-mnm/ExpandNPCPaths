@@ -1,5 +1,6 @@
 ﻿#pragma warning disable CS0618 // 型またはメンバーが旧型式です
 #pragma warning disable CS8600 // Null リテラルまたは Null の可能性がある値を Null 非許容型に変換しています。
+#pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
 
 using HarmonyLib;
 using StardewModdingAPI;
@@ -162,10 +163,10 @@ namespace ExpandNPCPaths
             // すでに経路が見つかっている場合はそのまま
             if (__result != null && __result.Count > 0)
             {
-                if (__result != null && npc.Name == "Seiris")
-                {
-                    // ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
-                }
+                // if (__result != null && npc != null && npc.Name == "Seiris")
+                // {
+                //     ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
+                // }
                 attemptCount = 0; // 成功したので試行回数リセット
                 return;
             }
@@ -174,10 +175,10 @@ namespace ExpandNPCPaths
             if (attemptCount >= 1)
             {
                 // ModMonitor.Log($"[WARN] 経路探索失敗（Mod & バニラどちらも到達不能）: NPCは目的地に到達できない", LogLevel.Warn);
-                if (__result != null && npc.Name == "Seiris")
-                {
-                    // ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
-                }
+                // if (__result != null && npc != null && npc.Name == "Seiris")
+                // {
+                //     ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
+                // }
                 return;
             }
 
@@ -200,10 +201,10 @@ namespace ExpandNPCPaths
                 // ModMonitor.Log($"[DEBUG] バニラのロジックで経路発見: NPCは目的地に向かう", LogLevel.Debug);
             }
 
-            if (__result != null && npc.Name == "Seiris")
-            {
-                // ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
-            }
+            // if (__result != null && npc != null && npc.Name == "Seiris")
+            // {
+            //     ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
+            // }
 
             // 再試行が終わったらリセット（次回の探索に影響しないように）
             attemptCount = 0;
@@ -257,7 +258,7 @@ namespace ExpandNPCPaths
                 return; // 進行可能なら何もしない
             }
 
-            ModMonitor.Log($"[DEBUG] {__instance.Name} is blocked at {__instance.TilePoint}. Repathing...", LogLevel.Debug);
+            // ModMonitor.Log($"[DEBUG] {__instance.Name} is blocked at {__instance.TilePoint}. Repathing...", LogLevel.Debug);
 
             // 現在時刻
             int currentTime = Game1.timeOfDay;
@@ -284,13 +285,13 @@ namespace ExpandNPCPaths
                 {
                     if (__instance.Schedule.TryGetValue(timeKey, out var candidateSchedule))
                     {
-                        ModMonitor.Log($"[DEBUG] candidateSchedule: {candidateSchedule.targetTile}, npcNextTarget: {npcNextTarget.Value}", LogLevel.Debug);
+                        // ModMonitor.Log($"[DEBUG] candidateSchedule: {candidateSchedule.targetTile}, npcNextTarget: {npcNextTarget.Value}", LogLevel.Debug);
 
                         // 目的地のタイルが合致するかチェック
                         if (candidateSchedule.targetTile == npcNextTarget.Value)
                         {
                             scheduleDescription = candidateSchedule;
-                            ModMonitor.Log($"[DEBUG] Found matching schedule for {__instance.Name} at time {timeKey}.", LogLevel.Debug);
+                            // ModMonitor.Log($"[DEBUG] Found matching schedule for {__instance.Name} at time {timeKey}.", LogLevel.Debug);
                             break;
                         }
                     }
@@ -302,8 +303,8 @@ namespace ExpandNPCPaths
                 // SchedulePathDescription から目的地の情報を取得
                 string scheduleKey = __instance.ScheduleKey ?? "default";
                 string startingLocation = __instance.currentLocation.NameOrUniqueName;
-                int startingX = __instance.TilePoint.X;
-                int startingY = __instance.TilePoint.Y;
+                int startingX = __instance.controller.pathToEndPoint.Peek().X;
+                int startingY = __instance.controller.pathToEndPoint.Peek().Y;
                 string endingLocation = scheduleDescription.targetLocationName;
                 int endingX = scheduleDescription.targetTile.X;
                 int endingY = scheduleDescription.targetTile.Y;
@@ -311,7 +312,7 @@ namespace ExpandNPCPaths
                 string endMessage = scheduleDescription.endOfRouteMessage;
                 int finalFacingDirection = scheduleDescription.facingDirection;
 
-                ModMonitor.Log($"[DEBUG] Repathing {currentLocation.NameOrUniqueName} {__instance.TilePoint} -> {endingLocation} {scheduleDescription.targetTile}", LogLevel.Debug);
+                // ModMonitor.Log($"[DEBUG] Repathing {currentLocation.NameOrUniqueName} {__instance.TilePoint} -> {endingLocation} {scheduleDescription.targetTile}", LogLevel.Debug);
 
                 // 経路探索を再実行
                 SchedulePathDescription newPath = __instance.pathfindToNextScheduleLocation(
@@ -320,15 +321,19 @@ namespace ExpandNPCPaths
                     finalFacingDirection, endBehavior, endMessage
                 );
 
-                // 経路が見つかった場合は適用
-                if (newPath != null && newPath.route.Count > 0)
+                // ModMonitor.Log($"[DEBUG] Old path: {string.Join(" -> ", __instance.controller.pathToEndPoint)}", LogLevel.Debug);
+                // ModMonitor.Log($"[DEBUG] New path: {string.Join(" -> ", newPath.route)}", LogLevel.Debug);
+                
+                if (newPath.route != null && newPath.route.Count > 0)
                 {
+                    // 経路が見つかった場合は適用
                     ModMonitor.Log($"[DEBUG] Applying new path for {__instance.Name}. New path: {string.Join(" -> ", newPath.route)}", LogLevel.Debug);
                     __instance.controller = new PathFindController(newPath.route, __instance, currentLocation);
                 }
                 else
                 {
                     // 経路が見つからなかった場合、最終手段として立ち止まる
+                    // 立ち止まらなくてもいいかも　バニラの処理になげるべきかな？
                     ModMonitor.Log($"[DEBUG] No valid path found for {__instance.Name}. Stopping movement.", LogLevel.Warn);
                     __instance.Halt();
                 }
