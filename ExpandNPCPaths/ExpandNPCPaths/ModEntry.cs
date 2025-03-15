@@ -1,4 +1,5 @@
 ﻿#pragma warning disable CS0618 // 型またはメンバーが旧型式です
+#pragma warning disable CS8600 // Null リテラルまたは Null の可能性がある値を Null 非許容型に変換しています。
 
 using HarmonyLib;
 using StardewModdingAPI;
@@ -9,6 +10,10 @@ using Microsoft.Xna.Framework;
 using xTile.Tiles;
 using xTile.Layers;
 using StardewValley.GameData.Buildings;
+
+// TODO:
+// attemptCountってもしかしてローカル変数でもよかったりする？
+// 結婚後の挙動
 
 namespace ExpandNPCPaths
 {
@@ -59,6 +64,12 @@ namespace ExpandNPCPaths
             harmony.Patch(
                 original: AccessTools.Method(typeof(PathFindController), "findPathForNPCSchedules", new Type[] { typeof(Point), typeof(Point), typeof(GameLocation), typeof(int), typeof(Character) }),
                 postfix: new HarmonyMethod(typeof(ModEntry), nameof(DecideNPCPathfindingMethod))
+            );
+
+            // NPCが障害物にぶつかった際に経路を再探索
+            harmony.Patch(
+                original: AccessTools.Method(typeof(NPC), "MovePosition"),
+                postfix: new HarmonyMethod(typeof(ModEntry), nameof(HandleNPCObstacle))
             );
         }
 
@@ -151,6 +162,10 @@ namespace ExpandNPCPaths
             // すでに経路が見つかっている場合はそのまま
             if (__result != null && __result.Count > 0)
             {
+                if (__result != null && npc.Name == "Seiris")
+                {
+                    // ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
+                }
                 attemptCount = 0; // 成功したので試行回数リセット
                 return;
             }
@@ -158,14 +173,18 @@ namespace ExpandNPCPaths
             // すでにバニラのロジックを適用した場合は、無限ループ防止のために抜ける
             if (attemptCount >= 1)
             {
-                ModMonitor.Log($"[WARN] 経路探索失敗（Mod & バニラどちらも到達不能）: NPCは目的地に到達できない", LogLevel.Warn);
+                // ModMonitor.Log($"[WARN] 経路探索失敗（Mod & バニラどちらも到達不能）: NPCは目的地に到達できない", LogLevel.Warn);
+                if (__result != null && npc.Name == "Seiris")
+                {
+                    // ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
+                }
                 return;
             }
 
             // 試行回数を加算（1回目の失敗）
             attemptCount++;
 
-            ModMonitor.Log($"[DEBUG] 初回経路探索失敗: バニラのisPositionImpassableForNPCScheduleを適用して再探索", LogLevel.Debug);
+            // ModMonitor.Log($"[DEBUG] 初回経路探索失敗: バニラのisPositionImpassableForNPCScheduleを適用して再探索", LogLevel.Debug);
 
             // バニラのロジックを適用して再試行
             useVanillaCollisionLogic = true;
@@ -174,11 +193,16 @@ namespace ExpandNPCPaths
             
             if (__result == null || __result.Count == 0)
             {
-                ModMonitor.Log($"[DEBUG] バニラのロジックでも経路が見つからず: NPCは目的地に到達できない", LogLevel.Debug);
+                // ModMonitor.Log($"[DEBUG] バニラのロジックでも経路が見つからず: NPCは目的地に到達できない", LogLevel.Debug);
             }
             else
             {
-                ModMonitor.Log($"[DEBUG] バニラのロジックで経路発見: NPCは目的地に向かう", LogLevel.Debug);
+                // ModMonitor.Log($"[DEBUG] バニラのロジックで経路発見: NPCは目的地に向かう", LogLevel.Debug);
+            }
+
+            if (__result != null && npc.Name == "Seiris")
+            {
+                // ModMonitor.Log($"[DEBUG] findPathForNPCSchedules {location.NameOrUniqueName} {startPoint} -> {endPoint}, __result: {string.Join(" -> ", __result.Select(p => $"({p.X},{p.Y})"))}", LogLevel.Debug);
             }
 
             // 再試行が終わったらリセット（次回の探索に影響しないように）
@@ -207,6 +231,108 @@ namespace ExpandNPCPaths
             }
 
             return true; // 経路探索を続行
+        }
+
+        private static void HandleNPCObstacle(NPC __instance, GameTime time, xTile.Dimensions.Rectangle viewport, GameLocation currentLocation)
+        {
+            if (__instance.Name != "Seiris")
+            {
+                return;
+            }
+
+            // 現在のマップを取得
+            if (currentLocation == null)
+            {
+                // nullなことないのでは？
+                ModMonitor.Log($"[DEBUG] HandleNPCObstacle location == null", LogLevel.Debug);
+                return;
+            }
+
+            // 現在の位置で衝突をチェック
+            Rectangle bbox = __instance.GetBoundingBox();
+            bool isBlocked = currentLocation.isCollidingPosition(bbox, Game1.viewport, false, 0, false, __instance, true);
+
+            if (!isBlocked)
+            {
+                return; // 進行可能なら何もしない
+            }
+
+            ModMonitor.Log($"[DEBUG] {__instance.Name} is blocked at {__instance.TilePoint}. Repathing...", LogLevel.Debug);
+
+            // 現在時刻
+            int currentTime = Game1.timeOfDay;
+
+            // NPCの次の移動先
+            Point? npcNextTarget = (__instance.controller?.pathToEndPoint != null && __instance.controller.pathToEndPoint.Count > 0)
+                ? __instance.controller.pathToEndPoint.Last()
+                : (Point?)null;
+
+            if (npcNextTarget == null)
+            {
+                ModMonitor.Log($"[ERROR] {__instance.Name}: pathToEndPoint is null, cannot determine next target.", LogLevel.Error);
+                return;
+            }
+
+            // `Schedule` 辞書から現在時刻に最も近い「実行中のスケジュール」を取得
+            SchedulePathDescription scheduleDescription = null;
+
+            if (__instance.Schedule != null && __instance.Schedule.Count > 0)
+            {
+                foreach (int timeKey in __instance.Schedule.Keys
+                    .Where(t => t <= currentTime) // 現在時刻より前のスケジュールのみ
+                    .OrderByDescending(t => t)) // 過去に向かって新しい順に並べる
+                {
+                    if (__instance.Schedule.TryGetValue(timeKey, out var candidateSchedule))
+                    {
+                        ModMonitor.Log($"[DEBUG] candidateSchedule: {candidateSchedule.targetTile}, npcNextTarget: {npcNextTarget.Value}", LogLevel.Debug);
+
+                        // 目的地のタイルが合致するかチェック
+                        if (candidateSchedule.targetTile == npcNextTarget.Value)
+                        {
+                            scheduleDescription = candidateSchedule;
+                            ModMonitor.Log($"[DEBUG] Found matching schedule for {__instance.Name} at time {timeKey}.", LogLevel.Debug);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (scheduleDescription != null)
+            {
+                // SchedulePathDescription から目的地の情報を取得
+                string scheduleKey = __instance.ScheduleKey ?? "default";
+                string startingLocation = __instance.currentLocation.NameOrUniqueName;
+                int startingX = __instance.TilePoint.X;
+                int startingY = __instance.TilePoint.Y;
+                string endingLocation = scheduleDescription.targetLocationName;
+                int endingX = scheduleDescription.targetTile.X;
+                int endingY = scheduleDescription.targetTile.Y;
+                string endBehavior = scheduleDescription.endOfRouteBehavior;
+                string endMessage = scheduleDescription.endOfRouteMessage;
+                int finalFacingDirection = scheduleDescription.facingDirection;
+
+                ModMonitor.Log($"[DEBUG] Repathing {currentLocation.NameOrUniqueName} {__instance.TilePoint} -> {endingLocation} {scheduleDescription.targetTile}", LogLevel.Debug);
+
+                // 経路探索を再実行
+                SchedulePathDescription newPath = __instance.pathfindToNextScheduleLocation(
+                    scheduleKey, startingLocation, startingX, startingY,
+                    endingLocation, endingX, endingY,
+                    finalFacingDirection, endBehavior, endMessage
+                );
+
+                // 経路が見つかった場合は適用
+                if (newPath != null && newPath.route.Count > 0)
+                {
+                    ModMonitor.Log($"[DEBUG] Applying new path for {__instance.Name}. New path: {string.Join(" -> ", newPath.route)}", LogLevel.Debug);
+                    __instance.controller = new PathFindController(newPath.route, __instance, currentLocation);
+                }
+                else
+                {
+                    // 経路が見つからなかった場合、最終手段として立ち止まる
+                    ModMonitor.Log($"[DEBUG] No valid path found for {__instance.Name}. Stopping movement.", LogLevel.Warn);
+                    __instance.Halt();
+                }
+            }
         }
 
         // helper method
