@@ -1,0 +1,9 @@
+{
+    "EnableExpandNPCPathFindingLocation": true,
+    "EnableExpandNPCPathFindingLocationOption": {
+        "AllowPathFindLocations": "Farm, FarmHouse, Backwoods",
+        "RegistDoorLocations": "Farm"
+    },
+    "EnableNPCPathObstruct": true,
+    "EnableSpoucePathFinding": true
+}
